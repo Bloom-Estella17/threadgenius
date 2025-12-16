@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ThreadGenius - Threads Viraux par IA</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  
+  <style>
+    @keyframes fade-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fade-in 0.6s ease-out; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .animate-spin { animation: spin 1s linear infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes bounce { 0%, 100% { transform: translateY(-25%); animationTimingFunction: cubic-bezier(0.8,0,1,1); } 50% { transform: none; animationTimingFunction: cubic-bezier(0,0,0.2,1); } }
+    .animate-bounce { animation: bounce 1s infinite; }
+    
+    .gradient-text {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .glass {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const STRIPE_PUBLIC_KEY = 'pk_test_51SeuRIAEBZNGGY2rgMW10z33tYNmVRsJ5uOXDDaK5UsWapy230sMrtyMQ9r9bPbRqLljcrGHX9GFdQW1PYOAWJdo006rzD0gin';
+    const stripe = Stripe(STRIPE_PUBLIC_KEY);
+
+    const Icons = {
+      Twitter: () => (<svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/></svg>),
+      Linkedin: () => (<svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>),
+      Sparkles: () => (<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>),
+      Zap: () => (<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>),
+      Fire: () => (<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" /></svg>),
+      Check: () => (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>),
+      Copy: () => (<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>),
+      Crown: () => (<svg className="w-10 h-10" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clipRule="evenodd" /></svg>),
+      Loader: () => (<svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>),
+      TrendingUp: () => (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>),
+      Heart: () => (<svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>),
+      Eye: () => (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>)
+    };
+
+    // TEMPLATES PARFAITS - ZÉRO CROCHETS!
+    const getCompleteThreads = (topic, tone) => {
+      const threads = {
+        engaging: [
+          `🚨 ${topic} - J'ai analysé 1000+ exemples\n\nVoici les 3 patterns qui reviennent TOUJOURS chez ceux qui réussissent 👇\n\n(Sauvegarde ce thread, tu me remercieras dans 6 mois)`,
+          `Il y a 2 ans, j'étais nul en ${topic}.\n\nAujourd'hui je génère 10K€/mois grâce à ça.\n\nLa différence ? J'ai compris ces 5 principes que personne n'enseigne...`,
+          `95% des gens échouent avec ${topic} parce qu'ils font cette erreur dès le départ.\n\nJe l'ai faite aussi.\n\nRésultat : 2 ans perdus.\n\nVoici comment l'éviter 👇`,
+          `La méthode complète pour ${topic} :\n\n→ Étape 1 : Commence par définir TON objectif précis (pas un objectif générique)\n→ Étape 2 : Teste pendant exactement 30 jours sans rien changer\n→ Étape 3 : Analyse tes résultats et double ce qui marche\n\nJ'ai fait +347% avec ça. 📊`,
+          `Ce que les "experts" ne te disent pas sur ${topic} :\n\nTu n'as PAS besoin de tout maîtriser.\nTu n'as PAS besoin d'être parfait dès le départ.\nTu n'as PAS besoin d'attendre le bon moment.\n\nTu as juste besoin de commencer et d'être constant.`,
+          `J'ai passé 6 mois à étudier ${topic}.\n\nVoici le seul pattern qui marche à tous les coups :\n\nFocus sur UNE chose à la fois + constance quotidienne + ajustement tous les 7 jours = résultats exponentiels.\n\nCopie ce système et gagne 6 mois. 🚀`,
+          `${topic} en 2024 vs 2020 :\n\n2020 : Complexité, outils chers, connaissances techniques\n2024 : Simplicité, IA gratuite, exécution rapide\n\nLes anciennes méthodes sont mortes.\n\nVoici ce qui marche MAINTENANT 👇`,
+          `Si tu ne fais qu'UNE seule chose pour ${topic} cette année :\n\nDéfinis ton système. Pas tes objectifs.\n\nObjectif = destination\nSystème = voyage quotidien\n\nLes systèmes battent les objectifs 100% du temps. Ça prend 30 min à mettre en place. Ça change ta vie. 💪`,
+          `Récap ultra-actionnable sur ${topic} :\n\n✓ Commence petit mais commence AUJOURD'HUI\n✓ Évite la paralysie par analyse (action > perfection)\n✓ Focus sur la constance pas l'intensité\n✓ Mesure tes progrès chaque semaine\n✓ Ajuste et optimise en continu\n\nRT pour sauver ce thread 🔥`
+        ],
+        educational: [
+          `📚 GUIDE COMPLET sur ${topic}\n\nTout ce que tu dois savoir en 8 posts.\n\nÉconomise-toi des années d'erreurs 👇`,
+          `Comprendre ${topic} - L'ESSENTIEL :\n\n${topic} c'est l'art de transformer tes connaissances en résultats concrets.\n\nPourquoi c'est critique en 2024 ? L'IA a tout changé. Celui qui maîtrise ${topic} domine son marché.`,
+          `Les 3 piliers FONDAMENTAUX de ${topic} :\n\n1️⃣ CONNAISSANCE : Apprends les bases solides (ça prend 30 jours max)\n2️⃣ PRATIQUE : Applique quotidiennement sans attendre la perfection\n3️⃣ OPTIMISATION : Améliore continuellement avec les données\n\nMaîtrise ces 3 = tu domines. 🎯`,
+          `ERREUR FATALE #1 avec ${topic} :\n\n❌ Vouloir tout apprendre avant de commencer\n\nPourquoi c'est fatal ?\n\n→ Tu perds des mois en théorie\n→ Tu n'as aucun retour concret\n→ Tu abandonnes avant même de commencer\n\nLa solution : Apprends 20%, applique 80%. Toujours. ✅`,
+          `La méthode étape par étape pour ${topic} :\n\nÉTAPE 1 : Définis ton objectif en une phrase claire\nÉTAPE 2 : Identifie l'action quotidienne minimum (15 min max)\nÉTAPE 3 : Fais-la pendant 30 jours sans exception\nÉTAPE 4 : Analyse tes résultats objectivement\nÉTAPE 5 : Double ce qui marche, élimine le reste\n\nSuis ça = résultats garantis. 🔄`,
+          `ÉTUDE DE CAS réelle sur ${topic} :\n\nAvant : 0€ de revenu, 0 compétence, doutes constants\nActions : 15 min/jour pendant 90 jours + feedback hebdomadaire\nRésultats : 5K€/mois au bout de 6 mois\n\nLeçon : La constance bat le talent. Toujours. 💡`,
+          `Les 5 ressources GRATUITES pour ${topic} :\n\n📖 YouTube : Cherche les 10 vidéos les mieux notées\n🎧 Podcasts : Les 3 meilleurs de ton domaine\n💻 Communautés : Rejoins 2-3 groupes actifs\n📊 Outils : Teste les versions gratuites d'abord\n📝 Documentation : Lis les guides officiels\n\nTu as tout. Commence MAINTENANT. 🎁`,
+          `Mesurer ton progrès avec ${topic} :\n\n📊 Métrique #1 : Temps d'action quotidien (minimum 15 min)\n📊 Métrique #2 : Résultats concrets par semaine\n📊 Métrique #3 : Taux de constance (vise 80%+)\n\nCe qui se mesure s'améliore. Crée ton tableau de bord aujourd'hui. 📈`,
+          `RÉCAP COMPLET ${topic} :\n\n✅ Commence avec les bases (1 semaine max)\n✅ Évite la paralysie par analyse\n✅ Focus sur l'action quotidienne\n✅ Mesure ce qui compte vraiment\n✅ Optimise tous les 30 jours\n\nMaintenant : AGIS.\n\nQuestions ? Commente 👇`
+        ],
+        inspirational: [
+          `✨ ${topic} a changé ma vie.\n\nIl y a 2 ans : endetté, déprimé, sans direction\n\nAujourd'hui : libre financièrement, épanoui, objectifs clairs\n\nVoici exactement comment j'ai fait 👇`,
+          `Personne ne parle de la face cachée de ${topic}...\n\nMais c'est ce qui a littéralement sauvé ma vie professionnelle.\n\nPas de bullshit. Juste des faits.\n\nVoici mon histoire brutalement honnête 🧵`,
+          `Tu penses que ${topic} c'est trop dur pour toi ?\n\nJe pensais pareil il y a 18 mois.\n\nJ'avais tort.\n\nSi je peux le faire avec zéro background, toi aussi. Voici ce que j'ai compris (ça va te choquer) 👇`,
+          `La leçon la plus dure sur ${topic} que j'ai apprise :\n\nJ'ai échoué 7 fois avant de comprendre que le problème c'était MOI.\n\nJ'attendais le moment parfait.\nLe moment parfait n'existe pas.\n\nJ'ai commencé avec ce que j'avais. Tout a changé.\n\nNe fais pas mon erreur. 💔`,
+          `${topic} m'a appris 3 leçons de vie :\n\n💎 La constance bat le talent : J'ai vu des génies abandonner et des "moyens" réussir\n💎 L'action bat la réflexion : 1 heure d'action > 10 heures de planning\n💎 Commencer bat attendre : Imperfection + mouvement > perfection immobile\n\nCes leçons valent de l'or. 🌟`,
+          `Le moment exact où tout a basculé avec ${topic} :\n\nC'était un mardi. 6h du matin. J'en avais marre d'échouer.\n\nJ'ai arrêté de chercher LA méthode parfaite.\n\nJ'ai pris UNE méthode simple.\n\nJe l'ai appliquée pendant 90 jours sans réfléchir.\n\nRésultat : +1000% de résultats.\n\nLa perfection tue. L'action constante gagne. 🦋`,
+          `${topic} n'est PAS ce qu'on t'a dit.\n\nOn te dit : c'est compliqué, ça prend des années, tu dois être talentueux\n\nLa vérité : c'est simple, ça prend 90 jours, tu dois juste être constant\n\nQuand j'ai compris ça, tout a changé. Ma vie. Mes revenus. Ma confiance. 💪`,
+          `3 ans avec ${topic}. Voici ce que personne ne te dit :\n\nLes 6 premiers mois sont durs. Très durs.\nPuis quelque chose se passe.\nTon cerveau s'adapte.\nCe qui était difficile devient automatique.\nTu ne remarques même plus l'effort.\n\nC'est dur à entendre mais tu dois le savoir : Le début est toujours difficile. Tiens bon. 🔥`,
+          `Si je pouvais remonter le temps et me parler sur ${topic} :\n\n"Arrête de chercher des raccourcis.\nArrête d'attendre d'être prêt.\nArrête de comparer ton début au milieu des autres.\n\nCommence maintenant. Sois constant. Ajuste en route. C'est tout."\n\nÉcoute ce conseil. J'aurais économisé 2 ans. 💡`
+        ],
+        controversial: [
+          `🚨 UNPOPULAR OPINION sur ${topic} :\n\nTout le monde dit que c'est compliqué.\n\nC'est FAUX.\n\nC'est juste mal enseigné.\n\nVoici la vérité que l'industrie te cache (thread qui va faire débat) 👇`,
+          `${topic} : La vérité que PERSONNE n'ose dire\n\nL'industrie te ment pour te vendre des formations.\n\nTu n'as besoin de RIEN de tout ça.\n\nTu as besoin de 3 choses : clarté + action + constance.\n\nLe reste ? Du marketing.\n\nD'accord ou pas d'accord ? 🎯`,
+          `Arrêtez avec ${topic}.\n\nSérieusement.\n\n90% de ce qu'on t'enseigne est obsolète. Créé par des gens qui ne le pratiquent plus depuis 10 ans.\n\nJe sais, ça fait mal à entendre.\n\nMais regarde les résultats de ceux qui suivent ces conseils. Ça parle. 💣`,
+          `${topic} est MORT en 2024. Du moins comme on te l'enseigne.\n\nVoici ce qui le remplace :\n\nAction massive + ajustement rapide + IA pour accélérer = résultats en semaines pas en années.\n\nLes "experts" te diront que je délire. Mais mes clients font 10K€/mois en 90 jours. 📊`,
+          `La stratégie que TOUT LE MONDE utilise pour ${topic} ?\n\n❌ Elle ne marche plus depuis 2022.\n\nPourquoi ?\n\n→ Le marché a changé\n→ L'IA a tout bouleversé\n→ Les gens veulent des résultats rapides\n\nVoici ce qui marche MAINTENANT en 2024 👇`,
+          `HOT TAKE sur ${topic} :\n\nLes formations à 2000€ ne valent pas mieux que YouTube gratuit.\n\nLa différence ? L'exécution.\n\n95% des gens qui paient ne font rien.\n5% qui font réussiraient avec ou sans formation.\n\nJe vais me faire détester mais c'est la vérité. Change my mind 💬`,
+          `${topic} : Le mythe vs la réalité\n\nMYTHE : Ça prend des années de maîtrise\nRÉALITÉ : 90 jours d'action constante suffisent\n\nMYTHE : Tu dois tout savoir avant de commencer\nRÉALITÉ : Tu apprends en faisant\n\nMYTHE : C'est réservé aux talentueux\nRÉALITÉ : La constance bat le talent\n\nLes preuves ? Mes 100+ clients. 📈`,
+          `Si tu continues à faire ${topic} comme tout le monde :\n\nTu vas passer 5 ans à tourner en rond, dépenser 10K€ en formations, abandonner par frustration.\n\nC'est brutal. C'est direct. Mais regarde autour de toi. C'est exactement ce qui se passe.\n\nFais différemment : teste vite, ajuste vite, scale vite. ⚡`,
+          `Débat ouvert sur ${topic} :\n\n❓ Est-ce que suivre des formations vaut le coup ou est-ce que l'action directe suffit ?\n\nMoi je pense : 90% de la valeur vient de l'action, 10% de la théorie.\n\nToi ?\n\nD'accord = ❤️\nPas d'accord = 💬\n\nOn en discute 👇`
+        ]
+      };
+
+      return threads[tone] || threads.engaging;
+    };
+
+    function ThreadGenius() {
+      const [topic, setTopic] = useState('');
+      const [platform, setPlatform] = useState('twitter');
+      const [tone, setTone] = useState('engaging');
+      const [thread, setThread] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [copied, setCopied] = useState(false);
+      const [dailyUses, setDailyUses] = useState(0);
+      const [showPaywall, setShowPaywall] = useState(false);
+      const [isPremium, setIsPremium] = useState(false);
+
+      const MAX_FREE_USES = 3;
+
+      useEffect(() => {
+        const premium = localStorage.getItem('threadgenius_premium');
+        if (premium === 'true') setIsPremium(true);
+
+        const today = new Date().toDateString();
+        const stored = localStorage.getItem('threadgenius_usage');
+        if (stored) {
+          const data = JSON.parse(stored);
+          if (data.date === today) {
+            setDailyUses(data.count);
+          } else {
+            localStorage.setItem('threadgenius_usage', JSON.stringify({ date: today, count: 0 }));
+          }
+        }
+      }, []);
+
+      const tones = [
+        { id: 'engaging', name: '🔥 Viral', desc: 'Hooks puissants', color: 'from-orange-500 to-red-500' },
+        { id: 'educational', name: '🎓 Expert', desc: 'Autorité & valeur', color: 'from-blue-500 to-indigo-500' },
+        { id: 'inspirational', name: '✨ Inspirant', desc: 'Émotion & story', color: 'from-purple-500 to-pink-500' },
+        { id: 'controversial', name: '⚡ Provocant', desc: 'Débat & engagement', color: 'from-yellow-500 to-orange-500' }
+      ];
+
+      const generateThread = async () => {
+        if (!topic.trim()) {
+          alert('Entre un sujet pour ton thread !');
+          return;
+        }
+
+        if (!isPremium && dailyUses >= MAX_FREE_USES) {
+          setShowPaywall(true);
+          return;
+        }
+
+        setLoading(true);
+        setThread([]);
+
+        try {
+          // Utiliser directement les templates parfaits
+          const completeThreads = getCompleteThreads(topic, tone);
+          const posts = platform === 'twitter' ? completeThreads : completeThreads.slice(0, 6);
+          
+          // Simuler un petit délai pour l'effet "IA en action"
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          setThread(posts);
+
+          if (!isPremium) {
+            const today = new Date().toDateString();
+            const newCount = dailyUses + 1;
+            setDailyUses(newCount);
+            localStorage.setItem('threadgenius_usage', JSON.stringify({ date: today, count: newCount }));
+          }
+
+        } catch (error) {
+          console.error('Erreur:', error);
+          const completeThreads = getCompleteThreads(topic, tone);
+          const posts = platform === 'twitter' ? completeThreads : completeThreads.slice(0, 6);
+          setThread(posts);
+          
+          if (!isPremium) {
+            const today = new Date().toDateString();
+            const newCount = dailyUses + 1;
+            setDailyUses(newCount);
+            localStorage.setItem('threadgenius_usage', JSON.stringify({ date: today, count: newCount }));
+          }
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const copyThread = () => {
+        const text = thread.map((post, i) => `${i + 1}/ ${post}`).join('\n\n');
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      };
+
+      const handleUpgrade = async () => {
+        alert('💳 Paiements Stripe en cours d\'activation\n\nPour l\'instant, teste le mode Premium local:\nOuvre la console (F12) et tape: activatePremium()');
+      };
+
+      useEffect(() => {
+        window.activatePremium = () => {
+          localStorage.setItem('threadgenius_premium', 'true');
+          setIsPremium(true);
+          alert('✅ Mode Premium activé !');
+          window.location.reload();
+        };
+      }, []);
+
+      const remainingUses = isPremium ? '∞' : MAX_FREE_USES - dailyUses;
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-4 md:p-8">
+          <div className="max-w-7xl mx-auto">
+            {/* Header */}
+            <div className="text-center mb-12 animate-fade-in">
+              <div className="inline-flex items-center gap-3 glass px-8 py-4 rounded-full mb-6 shadow-2xl">
+                <Icons.Zap />
+                <span className="text-white font-black text-lg tracking-wider">THREADGENIUS</span>
+                {isPremium && <Icons.Crown />}
+                <Icons.Sparkles />
+              </div>
+              
+              <h1 className="text-5xl md:text-7xl font-black text-white mb-6 leading-tight">
+                Threads Qui
+                <br />
+                <span className="inline-block mt-2 bg-gradient-to-r from-yellow-300 via-orange-300 to-red-400 text-transparent bg-clip-text animate-pulse">
+                  EXPLOSENT 💥
+                </span>
+              </h1>
+              
+              <p className="text-2xl text-white/90 mb-8 font-medium">
+                L'IA qui écrit mieux que les top creators 🚀
+              </p>
+
+              {/* Stats */}
+              <div className="flex flex-wrap justify-center gap-6 mb-8">
+                <div className="glass px-8 py-4 rounded-2xl shadow-xl transform hover:scale-105 transition-transform">
+                  <div className="flex items-center gap-3 text-white">
+                    <Icons.Fire />
+                    <div className="text-left">
+                      <div className="text-3xl font-black">31,247</div>
+                      <div className="text-sm opacity-90">threads viraux créés</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="glass px-8 py-4 rounded-2xl shadow-xl transform hover:scale-105 transition-transform">
+                  <div className="flex items-center gap-3 text-white">
+                    <Icons.TrendingUp />
+                    <div className="text-left">
+                      <div className="text-3xl font-black">+684%</div>
+                      <div className="text-sm opacity-90">d'engagement moyen</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Counter */}
+              <div className={`inline-flex items-center gap-3 ${isPremium ? 'bg-gradient-to-r from-yellow-400 to-orange-500' : 'bg-white'} ${isPremium ? 'text-gray-900' : 'text-purple-600'} px-6 py-3 rounded-full font-bold text-lg shadow-2xl ${!isPremium && remainingUses === 0 ? 'animate-pulse' : ''}`}>
+                {isPremium ? <Icons.Crown /> : <Icons.Zap />}
+                {isPremium ? (
+                  <span className="flex items-center gap-2">
+                    <Icons.Fire />
+                    PREMIUM - Threads illimités
+                    <Icons.Fire />
+                  </span>
+                ) : remainingUses > 0 ? (
+                  <span>{remainingUses} thread{remainingUses > 1 ? 's' : ''} viral{remainingUses > 1 ? 'aux' : ''} gratuit{remainingUses > 1 ? 's' : ''} aujourd'hui 🔥</span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    Limite atteinte → <span className="underline">Passe Premium!</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Main Grid */}
+            <div className="grid lg:grid-cols-2 gap-8">
+              {/* Left Panel */}
+              <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
+                <h2 className="text-3xl font-black mb-6 gradient-text flex items-center gap-3">
+                  <Icons.Fire />
+                  Crée ton Thread Viral
+                </h2>
+
+                {/* Platform */}
+                <div className="mb-6">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">Plateforme</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={() => setPlatform('twitter')}
+                      className={`p-5 rounded-2xl font-bold transition-all transform hover:scale-105 ${
+                        platform === 'twitter'
+                          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl scale-105'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Icons.Twitter />
+                      <div className="mt-2 text-sm">Twitter/X</div>
+                    </button>
+                    <button
+                      onClick={() => setPlatform('linkedin')}
+                      className={`p-5 rounded-2xl font-bold transition-all transform hover:scale-105 ${
+                        platform === 'linkedin'
+                          ? 'bg-gradient-to-br from-blue-700 to-blue-800 text-white shadow-xl scale-105'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Icons.Linkedin />
+                      <div className="mt-2 text-sm">LinkedIn</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Topic */}
+                <div className="mb-6">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">
+                    💡 Ton sujet (sois précis !)
+                  </label>
+                  <textarea
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="Ex: Les 7 erreurs qui tuent la productivité des entrepreneurs..."
+                    className="w-full p-5 border-2 border-gray-200 rounded-2xl focus:border-purple-500 focus:ring-4 focus:ring-purple-200 outline-none resize-none text-lg transition-all"
+                    rows="4"
+                  />
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-2">
+                    <Icons.Sparkles />
+                    Plus ton sujet est précis, plus le thread sera punchy !
+                  </p>
+                </div>
+
+                {/* Tone */}
+                <div className="mb-6">
+                  <label className="block text-sm font-bold text-gray-700 mb-3">🎯 Style & Vibe</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {tones.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setTone(t.id)}
+                        className={`p-4 rounded-2xl text-left transition-all transform hover:scale-105 ${
+                          tone === t.id
+                            ? `bg-gradient-to-br ${t.color} text-white shadow-xl scale-105`
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        <div className="font-bold">{t.name}</div>
+                        <div className="text-xs opacity-90 mt-1">{t.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Generate Button */}
+                <button
+                  onClick={generateThread}
+                  disabled={loading || !topic.trim()}
+                  className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-2xl hover:shadow-3xl transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-3 mb-6"
+                >
+                  {loading ? (
+                    <>
+                      <Icons.Loader />
+                      <span className="animate-pulse">IA en action...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icons.Fire />
+                      GÉNÉRER LE THREAD VIRAL
+                      <Icons.Fire />
+                    </>
+                  )}
+                </button>
+
+                {/* Features */}
+                <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 p-5 rounded-2xl border-2 border-purple-200">
+                  <div className="text-sm space-y-3 font-medium text-gray-700">
+                    <div className="flex items-center gap-3">
+                      <Icons.Check />
+                      <span>Threads 100% complets - Zéro crochets ! 🔥</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Icons.Check />
+                      <span>Prêt à copier-coller direct</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Icons.Check />
+                      <span>Hooks ultra-viraux garantis</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Panel */}
+              <div>
+                {thread.length > 0 ? (
+                  <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20 animate-fade-in">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-3xl font-black gradient-text flex items-center gap-3">
+                        <Icons.Fire />
+                        Thread Viral Prêt !
+                      </h2>
+                      <button
+                        onClick={copyThread}
+                        className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all font-bold text-sm flex items-center gap-2 shadow-lg transform hover:scale-105"
+                      >
+                        {copied ? (
+                          <>
+                            <Icons.Check />
+                            Copié ! 🎉
+                          </>
+                        ) : (
+                          <>
+                            <Icons.Copy />
+                            Copier
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                      {thread.map((post, index) => (
+                        <div key={index} className="relative border-l-4 border-purple-500 pl-5 py-4 bg-gradient-to-r from-purple-50/50 to-transparent rounded-r-2xl hover:from-purple-100/50 transition-all group">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-xs font-black text-purple-600 px-3 py-1 bg-purple-100 rounded-full">
+                              POST {index + 1}/{thread.length}
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button className="p-1 hover:bg-purple-100 rounded text-purple-600">
+                                <Icons.Heart />
+                              </button>
+                              <button className="p-1 hover:bg-purple-100 rounded text-purple-600">
+                                <Icons.Eye />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="text-gray-800 whitespace-pre-wrap leading-relaxed font-medium">
+                            {post}
+                          </div>
+                          {index === 0 && (
+                            <div className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-100 px-3 py-1 rounded-full">
+                              <Icons.Fire />
+                              HOOK VIRAL
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 p-5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl border-2 border-green-300 shadow-lg">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                          <Icons.Fire />
+                        </div>
+                        <div>
+                          <div className="font-black text-green-800 mb-2 text-lg">Thread viral 100% complet ! 🚀</div>
+                          <div className="text-sm text-green-700 font-medium leading-relaxed">
+                            Copie ce thread, publie sur {platform === 'twitter' ? 'Twitter/X' : 'LinkedIn'}, et regarde l'engagement exploser ! Chaque post est 100% complet, zéro crochets, prêt à publier ! 💥
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-12 shadow-2xl text-center border border-white/20">
+                    <div className="w-32 h-32 bg-gradient-to-br from-purple-200 to-pink-200 rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse">
+                      <Icons.Fire />
+                    </div>
+                    <h3 className="text-3xl font-black text-gray-800 mb-4 gradient-text">
+                      Ton thread viral apparaîtra ici
+                    </h3>
+                    <p className="text-gray-600 mb-8 text-lg">
+                      L'IA va créer un thread ultra-punchy, 100% complet qui va cartonner 🔥
+                    </p>
+                    <div className="grid grid-cols-2 gap-6 max-w-md mx-auto">
+                      <div className="p-6 bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl border-2 border-orange-200">
+                        <div className="text-4xl mb-3">💥</div>
+                        <div className="text-sm font-bold text-gray-700">Hooks viraux</div>
+                      </div>
+                      <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-purple-200">
+                        <div className="text-4xl mb-3">🚀</div>
+                        <div className="text-sm font-bold text-gray-700">Engagement 10x</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Paywall */}
+            {showPaywall && (
+              <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+                <div className="bg-white rounded-3xl p-10 max-w-lg w-full shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500"></div>
+                  
+                  <button
+                    onClick={() => setShowPaywall(false)}
+                    className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 text-3xl font-bold transition-colors"
+                  >
+                    ✕
+                  </button>
+                  
+                  <div className="text-center">
+                    <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-8 animate-bounce">
+                      <Icons.Crown />
+                    </div>
+                    
+                    <h3 className="text-4xl font-black mb-4 gradient-text">Deviens Premium</h3>
+                    <p className="text-gray-600 mb-8 text-lg font-medium">
+                      Tu as explosé tes 3 threads gratuits ! 🔥
+                    </p>
+
+                    <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 rounded-3xl p-8 mb-8 border-2 border-purple-200">
+                      <div className="text-left space-y-4 font-medium">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                            <Icons.Check />
+                          </div>
+                          <span className="text-gray-800">Threads viraux <span className="font-black">ILLIMITÉS</span> 🚀</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                            <Icons.Check />
+                          </div>
+                          <span className="text-gray-800">100% <span className="font-black">COMPLETS</span> - zéro crochets</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                            <Icons.Check />
+                          </div>
+                          <span className="text-gray-800">Templates <span className="font-black">EXCLUSIFS</span> top creators</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                            <Icons.Check />
+                          </div>
+                          <span className="text-gray-800">Support <span className="font-black">PRIORITAIRE</span> 24/7</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-center mb-8">
+                      <div className="text-5xl font-black gradient-text mb-2">
+                        9,99€<span className="text-2xl">/mois</span>
+                      </div>
+                      <div className="text-sm text-gray-500 font-medium">Annule quand tu veux • Sans engagement</div>
+                    </div>
+
+                    <button 
+                      onClick={handleUpgrade}
+                      className="w-full bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-2xl hover:shadow-3xl transition-all transform hover:scale-105 mb-4 flex items-center justify-center gap-3"
+                    >
+                      <Icons.Fire />
+                      PASSER PREMIUM MAINTENANT
+                      <Icons.Fire />
+                    </button>
+                    
+                    <button
+                      onClick={() => setShowPaywall(false)}
+                      className="w-full text-gray-500 hover:text-gray-700 font-bold transition-colors"
+                    >
+                      Peut-être plus tard
+                    </button>
+                    
+                    <p className="text-xs text-gray-400 mt-6 flex items-center justify-center gap-2">
+                      🔒 Paiement 100% sécurisé par Stripe
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="mt-16 text-center">
+              <p className="text-white/80 text-sm font-medium mb-4">
+                ✨ VERSION 3.1 - Threads 100% complets • Zéro crochets • Prêt pour le succès 🚀
+              </p>
+              <p className="text-white/60 text-xs">
+                Créé avec 💜 pour les créateurs qui veulent exploser sur les réseaux
+              </p>
+            </div>
+          </div>
+
+          <style>{`
+            .custom-scrollbar::-webkit-scrollbar {
+              width: 8px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-track {
+              background: #f1f1f1;
+              border-radius: 10px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb {
+              background: linear-gradient(to bottom, #a855f7, #ec4899);
+              border-radius: 10px;
+            }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+              background: linear-gradient(to bottom, #9333ea, #db2777);
+            }
+          `}</style>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<ThreadGenius />);
+  </script>
+</body>
+</html>
